@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#1a2744"/>
+      <stop offset="100%" stop-color="#07090f"/>
+    </radialGradient>
+    <radialGradient id="goldBall" cx="35%" cy="30%" r="65%">
+      <stop offset="0%" stop-color="#fde68a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#78350f"/>
+    </radialGradient>
+    <radialGradient id="cyanBall" cx="35%" cy="30%" r="65%">
+      <stop offset="0%" stop-color="#a5f3fc"/>
+      <stop offset="50%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0e4f5c"/>
+    </radialGradient>
+    <radialGradient id="purpleBall" cx="35%" cy="30%" r="65%">
+      <stop offset="0%" stop-color="#ddd6fe"/>
+      <stop offset="50%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#2e1065"/>
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+    <!-- Star shape -->
+    <polygon id="star" points="0,-10 2.4,-3.3 9.5,-3.1 3.9,1.3 5.9,8.1 0,4 -5.9,8.1 -3.9,1.3 -9.5,-3.1 -2.4,-3.3" fill="#f59e0b"/>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+
+  <!-- Outer ring glow -->
+  <circle cx="256" cy="256" r="240" fill="none" stroke="#06b6d4" stroke-width="3" opacity="0.4"/>
+  <circle cx="256" cy="256" r="228" fill="none" stroke="#3b82f6" stroke-width="1" opacity="0.25"/>
+
+  <!-- Trophy body -->
+  <g filter="url(#shadow)" transform="translate(256,256)">
+    <!-- Trophy cup -->
+    <path d="M-62,-80 Q-70,-30 -50,20 Q-35,55 0,65 Q35,55 50,20 Q70,-30 62,-80 Z"
+          fill="url(#goldBall)" opacity="0.95"/>
+    <!-- Trophy handles -->
+    <path d="M-62,-60 Q-95,-60 -90,-20 Q-85,10 -58,10"
+          fill="none" stroke="#f59e0b" stroke-width="14" stroke-linecap="round"/>
+    <path d="M62,-60 Q95,-60 90,-20 Q85,10 58,10"
+          fill="none" stroke="#f59e0b" stroke-width="14" stroke-linecap="round"/>
+    <!-- Trophy stem -->
+    <rect x="-10" y="65" width="20" height="35" fill="#d97706" rx="3"/>
+    <!-- Trophy base -->
+    <rect x="-38" y="98" width="76" height="16" fill="#b45309" rx="6"/>
+    <!-- Shine on cup -->
+    <ellipse cx="-18" cy="-40" rx="12" ry="22" fill="white" opacity="0.2" transform="rotate(-15,-18,-40)"/>
+    <!-- Stars inside cup -->
+    <text x="0" y="-20" text-anchor="middle" font-size="36" fill="white" opacity="0.9">★</text>
+  </g>
+
+  <!-- Lottery balls arc above trophy -->
+  <!-- Ball 1 - gold -->
+  <circle cx="130" cy="170" r="36" fill="url(#goldBall)" filter="url(#glow)"/>
+  <text x="130" y="178" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="22" font-weight="900" fill="#422006">7</text>
+  <circle cx="130" cy="170" r="36" fill="none" stroke="#fde68a" stroke-width="2" opacity="0.6"/>
+
+  <!-- Ball 2 - cyan -->
+  <circle cx="210" cy="128" r="36" fill="url(#cyanBall)" filter="url(#glow)"/>
+  <text x="210" y="136" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="22" font-weight="900" fill="#001a1f">14</text>
+  <circle cx="210" cy="128" r="36" fill="none" stroke="#a5f3fc" stroke-width="2" opacity="0.6"/>
+
+  <!-- Ball 3 - gold -->
+  <circle cx="302" cy="128" r="36" fill="url(#goldBall)" filter="url(#glow)"/>
+  <text x="302" y="136" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="22" font-weight="900" fill="#422006">28</text>
+  <circle cx="302" cy="128" r="36" fill="none" stroke="#fde68a" stroke-width="2" opacity="0.6"/>
+
+  <!-- Ball 4 - cyan -->
+  <circle cx="382" cy="170" r="36" fill="url(#cyanBall)" filter="url(#glow)"/>
+  <text x="382" y="178" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="22" font-weight="900" fill="#001a1f">35</text>
+  <circle cx="382" cy="170" r="36" fill="none" stroke="#a5f3fc" stroke-width="2" opacity="0.6"/>
+
+  <!-- Special ball (purple) bottom right -->
+  <circle cx="370" cy="355" r="40" fill="url(#purpleBall)" filter="url(#glow)"/>
+  <text x="370" y="363" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="22" font-weight="900" fill="white">49</text>
+  <circle cx="370" cy="355" r="40" fill="none" stroke="#ddd6fe" stroke-width="2.5" opacity="0.7"/>
+
+  <!-- Sparkle stars scattered -->
+  <g fill="#fde68a" opacity="0.9">
+    <polygon points="80,90 84,100 94,100 86,106 89,116 80,110 71,116 74,106 66,100 76,100" transform="scale(0.7) translate(45,45)"/>
+    <polygon points="420,75 423,83 431,83 424,88 427,96 420,91 413,96 416,88 409,83 417,83" transform="scale(0.6)"/>
+    <polygon points="460,270 462,276 468,276 463,280 465,286 460,282 455,286 457,280 452,276 458,276" transform="scale(0.55)"/>
+    <polygon points="70,380 72,386 78,386 73,390 75,396 70,392 65,396 67,390 62,386 68,386" transform="scale(0.5)"/>
+  </g>
+
+  <!-- AI text badge -->
+  <rect x="186" y="430" width="140" height="38" rx="19" fill="#3b82f6" opacity="0.9"/>
+  <text x="256" y="455" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="18" font-weight="900" fill="white" letter-spacing="3">A I</text>
+</svg>
