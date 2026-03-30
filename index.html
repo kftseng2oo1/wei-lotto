@@ -19,6 +19,7 @@
 
   <title>AI 歷史權重分析預測系統</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+TC:wght@300;400;700&display=swap');
 
@@ -354,6 +355,9 @@ select.num-input option { background: #1e293b; color: var(--gold); }
       <span class="step-title">輸入資料來源</span>
     </div>
 
+    <!-- IDB bars -->
+    <div id="restoreBar" style="display:none; margin-bottom:12px; padding:10px 14px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:8px; font-size:0.8rem; display:flex; align-items:center; flex-wrap:wrap; gap:8px;"></div>
+    <div id="idbStatusBar" style="display:none; margin-bottom:10px; padding:6px 12px; background:rgba(6,182,212,0.06); border:1px solid rgba(6,182,212,0.2); border-radius:6px; font-size:0.75rem; color:var(--accent);"></div>
     <div class="mode-tabs">
       <button class="mode-tab active" id="tabFile" onclick="switchMode('file')">📂 匯入 Excel 歷史資料</button>
       <button class="mode-tab" id="tabManual" onclick="switchMode('manual')">✏️ 手動輸入熱門號碼</button>
@@ -361,13 +365,55 @@ select.num-input option { background: #1e293b; color: var(--gold); }
 
     <!-- FILE MODE -->
     <div id="panelFile">
-      <div class="file-zone" id="dropZone">
-        <input type="file" id="fileInput" accept=".xlsx">
-        <div class="file-icon">📊</div>
-        <div>點擊或拖放 Excel 檔案 (.xlsx) 至此</div>
-        <div class="file-hint">格式：每列為一期開獎，各欄位填入開獎號碼 (1–49)，可包含表頭。</div>
+      <div class="file-zone" id="dropZone"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="onDrop(event)">
+        <input type="file" id="fileInput" accept=".xlsx,.zip,.csv,.txt" multiple
+               onchange="handleFiles(this.files)">
+        <div class="file-icon">📦</div>
+        <div>點此選擇檔案 或 拖放至此</div>
+        <div class="file-hint">
+          支援<b>多檔同時上傳</b>，資料自動合併去重<br>
+          📦 <b>.zip</b>&nbsp;&nbsp;📗 <b>.xlsx</b>&nbsp;&nbsp;📄 <b>.csv / .txt</b>
+        </div>
       </div>
-      <div id="importStatus" class="import-status"></div>
+      <div id="importStatus"importStatus" class="import-status"></div>
+
+      <!-- 智慧分析區塊（匯入後才顯示）-->
+      <div id="smartPanel" style="display:none; margin-top:16px;">
+        <hr class="section-sep">
+        <div style="font-size:0.82rem; font-weight:700; color:var(--accent); margin-bottom:10px;">🧠 智慧分析引擎</div>
+        <div style="font-size:0.78rem; color:var(--muted); margin-bottom:12px;">
+          基於歷史資料進行多維度統計分析，結果可直接作為權重校準的參考依據。
+        </div>
+        <div id="parseModeBadge" style="display:none; margin-bottom:10px; padding:6px 10px;
+             background:rgba(6,182,212,0.08); border:1px solid rgba(6,182,212,0.3);
+             border-radius:6px; font-size:0.75rem; color:var(--accent);">
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+          <button class="btn" style="background:#1e3a5f;color:#7dd3fc;font-size:0.8rem;padding:8px 14px;" onclick="smartAnalyze('freq')">📊 頻率排行</button>
+          <button class="btn" style="background:#1e3a5f;color:#7dd3fc;font-size:0.8rem;padding:8px 14px;" onclick="smartAnalyze('cold')">❄️ 冷熱分析</button>
+          <button class="btn" style="background:#1e3a5f;color:#7dd3fc;font-size:0.8rem;padding:8px 14px;" onclick="smartAnalyze('odd')">⚖️ 奇偶大小</button>
+          <button class="btn" style="background:#1e3a5f;color:#7dd3fc;font-size:0.8rem;padding:8px 14px;" onclick="smartAnalyze('gap')">📉 遺漏值</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+          <button class="btn" style="background:#065f46;color:#6ee7b7;font-size:0.8rem;padding:8px 14px;" onclick="smartAnalyze('pick')">🎯 智慧推薦選號</button>
+      <button class="btn" style="background:#3b1f6e;color:#c4b5fd;font-size:0.8rem;padding:8px 14px;" onclick="smartAnalyze('consec')">🔗 連號分析</button>
+          <label style="font-size:0.78rem;color:var(--muted);">推薦組數：</label>
+          <input type="number" id="smartComboCount" value="5" min="1" max="99"
+            style="width:58px;background:#07090f;border:1px solid var(--border);border-radius:6px;
+                   color:var(--gold);font-weight:700;font-family:'Orbitron',monospace;
+                   padding:5px;font-size:0.85rem;text-align:center;outline:none;">
+        </div>
+        <div id="smartOutput" style="
+          font-size:0.78rem; white-space:pre-wrap; font-family:monospace;
+          background:#07090f; border:1px solid var(--border); border-radius:8px;
+          padding:12px; color:#94a3b8; min-height:60px; max-height:320px;
+          overflow-y:auto; display:none; line-height:1.7;">
+        </div>
+      </div>
+
       <div class="preview-table-wrap" id="previewWrap">
         <div style="font-size:0.78rem; color:var(--muted); margin-bottom:6px;">📋 解析結果預覽（出現次數前 15 名）</div>
         <table class="preview-table" id="previewTable"></table>
@@ -455,6 +501,7 @@ let currentWeights     = new Array(50).fill(1.0);
 let historyCounts      = new Array(50).fill(0);
 let totalSamples       = 0;
 let dataReady          = false;
+let rawData            = []; // [{numbers:[...], sp:n}] 每期完整資料
 
 // ═══════════════════════════════════
 //  LOGGING
@@ -584,68 +631,263 @@ function applyManual() {
 }
 
 // ═══════════════════════════════════
-//  FILE IMPORT
+
 // ═══════════════════════════════════
-const fileInput = document.getElementById('fileInput');
-const dropZone  = document.getElementById('dropZone');
+//  FILE IMPORT  (multi-file, CDN JSZip)
+// ═══════════════════════════════════
+var _queue      = [];
+var _allRows    = [];
+var _doneCount  = 0;
+var _totalCount = 0;
+var _labels     = [];
 
-fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+// Drop handler
+function onDrop(ev) {
+  ev.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) {
+    handleFiles(ev.dataTransfer.files);
+  }
+}
 
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault(); dropZone.classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (file) handleFile(file);
-});
+// Main entry — matches reference app pattern exactly
+async function handleFiles(fileList) {
+  var files = Array.from(fileList);
+  if (!files.length) return;
 
-function handleFile(file) {
-  if (!file || !file.name.endsWith('.xlsx')) {
-    document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">❌ 請選擇 .xlsx 檔案</span>';
+  _queue      = files.slice();
+  _allRows    = [];
+  _doneCount  = 0;
+  _totalCount = files.length;
+  _labels     = files.map(function(f){ return f.name; });
+
+  setStatus('<span style="color:var(--accent)">&#9203; 讀取 ' + _totalCount + ' 個檔案...</span>');
+  log('開始讀取 ' + _totalCount + ' 個檔案', 'ok');
+
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    _doneCount = i + 1;
+    setStatus('<span style="color:var(--accent)">&#9203; (' + _doneCount + '/' + _totalCount + ') ' + file.name + '</span>');
+
+    var ext  = file.name.indexOf('.') >= 0 ? file.name.split('.').pop().toLowerCase() : '';
+    var mime = (file.type || '').toLowerCase();
+
+    try {
+      if (ext === 'zip' || mime.indexOf('zip') >= 0) {
+        await processZip(file);
+      } else if (ext === 'xlsx' || mime.indexOf('spreadsheet') >= 0) {
+        processXlsx(await readAsArrayBuffer(file));
+      } else {
+        processTxt(await readAsText(file));
+      }
+    } catch(e) {
+      log('讀取失敗 ' + file.name + ': ' + e.message, 'err');
+    }
+  }
+
+  finalizeImport();
+}
+
+// handleFile kept for backward compat
+function handleFile(file) { handleFiles([file]); }
+
+// ── ZIP (uses CDN JSZip same as reference app) ──
+async function processZip(file) {
+  log('解壓 ZIP: ' + file.name, 'ok');
+  var zip = await JSZip.loadAsync(file);
+  var names = Object.keys(zip.files).filter(function(n) {
+    var lo = n.toLowerCase();
+    return !zip.files[n].dir && (lo.slice(-5) === '.xlsx' || lo.slice(-4) === '.csv' || lo.slice(-4) === '.txt');
+  });
+  if (!names.length) { log('ZIP 內無支援格式', 'err'); return; }
+  log('ZIP 內檔案: ' + names.join(', '), 'ok');
+  for (var i = 0; i < names.length; i++) {
+    var name = names[i];
+    var isXlsx = name.toLowerCase().slice(-5) === '.xlsx';
+    if (isXlsx) {
+      var buf = await zip.files[name].async('arraybuffer');
+      processXlsx(buf);
+    } else {
+      var txt = await zip.files[name].async('string');
+      processTxt(txt);
+    }
+  }
+}
+
+// ── XLSX ──
+function processXlsx(arraybuf) {
+  try {
+    var wb = XLSX.read(new Uint8Array(arraybuf), {type:'array'});
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    var json = XLSX.utils.sheet_to_json(ws, {header:1});
+    json.forEach(function(row) { _allRows.push(row); });
+    log('Excel 解析: ' + json.length + ' 列', 'ok');
+  } catch(e) { log('Excel 解析失敗: ' + e.message, 'err'); }
+}
+
+// ── TXT / CSV ──
+function processTxt(text) {
+  var CR = String.fromCharCode(13), LF = String.fromCharCode(10);
+  var rows = text.split(CR + LF).join(LF).split(CR).join(LF).split(LF)
+    .filter(function(l){ return l.trim().length > 0; })
+    .map(function(line){
+      return line.replace(/，/g, ',').split(/[,	 ]+/)
+        .map(function(v){ return v.trim(); })
+        .filter(function(v){ return v.length > 0; });
+    });
+  rows.forEach(function(row){ _allRows.push(row); });
+  log('文字解析: ' + rows.length + ' 列', 'ok');
+}
+
+// ── Finalize: convert allRows to historyCounts ──
+// 自動偵測欄位：找 header 列，定位號碼欄
+function detectColMap(rows) {
+  for (var i = 0; i < Math.min(5, rows.length); i++) {
+    var row = rows[i];
+    var joined = row.join(',');
+    // 官方格式含「遊戲名稱」或「獎號」或「特別號」
+    if (joined.indexOf('遊戲名稱') >= 0 ||
+        joined.indexOf('獎號') >= 0 ||
+        joined.indexOf('特別號') >= 0 ||
+        joined.indexOf('期別') >= 0) {
+      var map = {headerRow: i, n1:-1, n2:-1, n3:-1, n4:-1, n5:-1, n6:-1, sp:-1, game:-1};
+      row.forEach(function(h, ci) {
+        var t = String(h).trim();
+        if (t === '遊戲名稱' || t === '道戲名稱') map.game = ci;
+        else if (t === '獎號1' || t === '號碼1') map.n1 = ci;
+        else if (t === '獎號2' || t === '號碼2') map.n2 = ci;
+        else if (t === '獎號3' || t === '號碼3') map.n3 = ci;
+        else if (t === '獎號4' || t === '號碼4') map.n4 = ci;
+        else if (t === '獎號5' || t === '號碼5') map.n5 = ci;
+        else if (t === '獎號6' || t === '號碼6') map.n6 = ci;
+        else if (t.indexOf('特別') >= 0) map.sp = ci;
+      });
+      // 官方格式 positional fallback: col6-11=balls, col12=special
+      if (map.n1 < 0 && row.length >= 13) {
+        map.n1=6; map.n2=7; map.n3=8; map.n4=9; map.n5=10; map.n6=11; map.sp=12;
+      }
+      if (map.n1 >= 0) return map;
+    }
+  }
+  return null; // 純數字模式
+}
+
+function extractRowByMap(row, map) {
+  // 過濾非大樂透列
+  if (map.game >= 0) {
+    var g = String(row[map.game] || '').trim();
+    if (g && g !== '大樂透') return null;
+  }
+  var idxs = [map.n1, map.n2, map.n3, map.n4, map.n5, map.n6];
+  var nums = [];
+  idxs.forEach(function(ci) {
+    if (ci >= 0 && ci < row.length) {
+      var n = parseInt(row[ci]);
+      if (n >= 1 && n <= 49) nums.push(n);
+    }
+  });
+  var sp = (map.sp >= 0 && map.sp < row.length) ? parseInt(row[map.sp]) : null;
+  if (nums.length === 6) return {numbers: nums, sp: (sp >= 1 && sp <= 49) ? sp : null};
+  return null;
+}
+
+function finalizeImport() {
+  historyCounts.fill(0);
+  totalSamples = 0;
+  rawData = [];
+  var rowCount = 0;
+
+  // 自動偵測欄位結構
+  var colMap = detectColMap(_allRows);
+  var badge = document.getElementById('parseModeBadge');
+  if (colMap) {
+    log('偵測到官方欄位格式，從第 ' + (colMap.headerRow+2) + ' 列開始解析', 'ok');
+    if (badge) { badge.style.display='block'; badge.textContent='✅ 官方格式：欄位精準定位（號碼欄 ' + (colMap.n1+1) + '-' + (colMap.n6+1) + '，特別號欄 ' + (colMap.sp+1) + '）'; }
+  } else {
+    log('純數字模式：每列只取純整數欄位中 1-49 的數字', 'ok');
+    if (badge) { badge.style.display='block'; badge.textContent='⚠️ 通用模式：自動過濾日期/期別，只取純整數欄位的 1-49'; }
+  }
+
+  _allRows.forEach(function(row, rowIdx) {
+    // 跳過 header 列
+    if (colMap && rowIdx <= colMap.headerRow) return;
+
+    var entry = null;
+    if (colMap) {
+      entry = extractRowByMap(row, colMap);
+    } else {
+      // 純數字模式：只掃純數字欄位（排除日期、期別等格式）
+      var nums = [];
+      row.forEach(function(val) {
+        var str = String(val).trim();
+        // 只接受「純整數字串」，排除含斜線/破折號的日期
+        if (/^\d+$/.test(str)) {
+          var n = parseInt(str);
+          if (n >= 1 && n <= 49) nums.push(n);
+        }
+      });
+      if (nums.length >= 6) {
+        entry = {numbers: nums.slice(0,6), sp: nums.length >= 7 ? nums[6] : null};
+      }
+    }
+
+    if (entry) {
+      rawData.push(entry);
+      entry.numbers.forEach(function(n){ historyCounts[n]++; totalSamples++; });
+      rowCount++;
+    }
+  });
+
+  if (totalSamples === 0) {
+    setStatus('<span style="color:var(--red)">&#10060; 未找到有效號碼 (1-49)</span>');
+    log('未找到有效號碼', 'err');
     return;
   }
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, {header:1});
 
-      historyCounts.fill(0);
-      totalSamples = 0;
-      let rowCount = 0;
+  for (var i = 1; i <= 49; i++) targetDistribution[i] = historyCounts[i] / totalSamples;
+  currentWeights.fill(1.0);
+  dataReady = true;
 
-      json.forEach(row => {
-        let rowHasNum = false;
-        row.forEach(val => {
-          const n = parseInt(val);
-          if (n >= 1 && n <= 49) { historyCounts[n]++; totalSamples++; rowHasNum = true; }
-        });
-        if (rowHasNum) rowCount++;
-      });
+  var hasSp  = rawData.some(function(r){ return r.sp !== null; });
+  var multi  = _totalCount > 1;
+  setStatus('<span style="color:var(--green)">&#9989; ' +
+    (multi ? '[' + _totalCount + ' 檔合併] ' : '') +
+    rowCount + ' 期 / ' + totalSamples + ' 筆' +
+    (hasSp ? ' (含特別號)' : '') + '</span>');
 
-      if (totalSamples === 0) {
-        document.getElementById('importStatus').innerHTML = '<span style="color:var(--red)">❌ 未找到有效號碼 (1–49)</span>';
-        return;
-      }
-
-      for (let i = 1; i <= 49; i++) targetDistribution[i] = historyCounts[i] / totalSamples;
-      currentWeights.fill(1.0);
-      dataReady = true;
-
-      document.getElementById('importStatus').innerHTML =
-        `<span style="color:var(--green)">✅ 成功匯入 ${rowCount} 期 / ${totalSamples} 筆號碼資料</span>`;
-      document.getElementById('btnCalibrate').disabled = false;
-      log(`資料匯入完成：${rowCount} 期，${totalSamples} 筆`, 'ok');
-
-      renderPreview();
-      renderWeights(false);
-    } catch(err) {
-      document.getElementById('importStatus').innerHTML = `<span style="color:var(--red)">❌ 解析失敗：${err.message}</span>`;
-    }
-  };
-  reader.readAsArrayBuffer(file);
+  document.getElementById('btnCalibrate').disabled = false;
+  document.getElementById('smartPanel').style.display = '';
+  idbSave();
+  log('匯入完成：' + rowCount + ' 期，' + totalSamples + ' 筆' +
+      (multi ? '（' + _totalCount + ' 檔合併）' : ''), 'ok');
+  renderPreview();
+  renderWeights(false);
 }
+
+// ── Helpers ──
+function setStatus(html_str) {
+  document.getElementById('importStatus').innerHTML = html_str;
+}
+
+function readAsArrayBuffer(file) {
+  return new Promise(function(res, rej) {
+    var r = new FileReader();
+    r.onload = function(e){ res(e.target.result); };
+    r.onerror = rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function readAsText(file) {
+  return new Promise(function(res, rej) {
+    var r = new FileReader();
+    r.onload = function(e){ res(e.target.result); };
+    r.onerror = rej;
+    r.readAsText(file, 'UTF-8');
+  });
+}
+
+
 
 function renderPreview() {
   const wrap  = document.getElementById('previewWrap');
@@ -1082,7 +1324,384 @@ function resetAll() {
   document.getElementById('weightGrid').innerHTML = '';
   logBox.innerHTML = '<div class="log-line">系統已重置，等待資料匯入...</div>';
   document.getElementById('fileInput').value = '';
+  document.getElementById('smartPanel').style.display = 'none';
+  document.getElementById('smartOutput').style.display = 'none';
+  rawData = [];
 }
+
+// ═══════════════════════════════════
+//  SMART ANALYSIS ENGINE
+// ═══════════════════════════════════
+function smartAnalyze(type) {
+  const out = document.getElementById('smartOutput');
+  out.style.display = 'block';
+  out.textContent = '分析中...';
+  if (!rawData.length) { out.textContent = '⚠️ 請先匯入資料'; return; }
+  try {
+    let result = '';
+    if (type === 'freq') result = saFreq();
+    if (type === 'cold') result = saCold();
+    if (type === 'odd')  result = saOdd();
+    if (type === 'gap')  result = saGap();
+    if (type === 'pick')   result = saPick();
+  if (type === 'consec') result = saConsec();
+    out.textContent = result;
+  } catch(e) {
+    out.textContent = '❌ 分析錯誤：' + e.message;
+  }
+}
+
+function saGetFreq() {
+  const freq = new Array(50).fill(0);
+  const spFreq = new Array(50).fill(0);
+  rawData.forEach(function(r) {
+    r.numbers.forEach(function(n) { if (n>=1&&n<=49) freq[n]++; });
+    if (r.sp && r.sp>=1 && r.sp<=49) spFreq[r.sp]++;
+  });
+  return { freq: freq, spFreq: spFreq };
+}
+
+function saFreq() {
+  var f = saGetFreq(), freq = f.freq;
+  var total = rawData.length;
+  var sorted = [];
+  for (var i=1;i<=49;i++) sorted.push({n:i, c:freq[i], p:(freq[i]/total*100)});
+  sorted.sort(function(a,b){return b.c-a.c;});
+  var s = '📊 號碼頻率排行（共 ' + total + ' 期）\n' + '─'.repeat(36) + '\n';
+  s += '排名  號碼  出現次數  佔比   圖示\n' + '─'.repeat(36) + '\n';
+  sorted.forEach(function(r,i) {
+    var bar = '█'.repeat(Math.round(r.p/1.2));
+    s += String(i+1).padStart(3) + '   ' + String(r.n).padStart(2) + '    ' + String(r.c).padStart(4) + '期   ' + r.p.toFixed(1).padStart(4) + '%  ' + bar + '\n';
+  });
+  return s;
+}
+
+function saCold() {
+  var f = saGetFreq(), freq = f.freq;
+  var total = rawData.length;
+  var recent20 = rawData.slice(0,20);
+  var recentFreq = new Array(50).fill(0);
+  recent20.forEach(function(r){ r.numbers.forEach(function(n){ recentFreq[n]++; }); });
+
+  var hot = [], cold = [];
+  for (var i=1;i<=49;i++) {
+    if (recentFreq[i]>=3) hot.push(i);
+    if (recentFreq[i]===0) cold.push(i);
+  }
+  hot.sort(function(a,b){return recentFreq[b]-recentFreq[a];});
+  cold.sort(function(a,b){return freq[b]-freq[a];});
+
+  var lastSeen = new Array(50).fill(total);
+  rawData.forEach(function(r,idx){ r.numbers.forEach(function(n){ if(lastSeen[n]===total) lastSeen[n]=idx; }); });
+  var longest = [];
+  for (var j=1;j<=49;j++) longest.push(j);
+  longest.sort(function(a,b){return lastSeen[b]-lastSeen[a];});
+  longest = longest.slice(0,10);
+
+  var s = '❄️ 冷熱號碼分析（近20期）\n' + '─'.repeat(36) + '\n';
+  s += '\n🔥 熱號（近20期出現≥3次）：\n';
+  if (hot.length) {
+    hot.forEach(function(n){ s += '  ' + String(n).padStart(2) + '號(' + recentFreq[n] + '次)'; });
+    s += '\n';
+  } else { s += '  （無）\n'; }
+  s += '\n❄️ 冷號（近20期未出現）：\n';
+  if (cold.length) {
+    cold.slice(0,12).forEach(function(n){ s += '  ' + String(n).padStart(2) + '號'; });
+    s += '\n';
+  } else { s += '  （無）\n'; }
+  s += '\n⏰ 遺漏最久前10名：\n';
+  longest.forEach(function(n,i) {
+    s += '  ' + String(i+1).padStart(2) + '. 號碼 ' + String(n).padStart(2) + ' → 已遺漏 ' + lastSeen[n] + ' 期\n';
+  });
+  return s;
+}
+
+function saOdd() {
+  var total = rawData.length;
+  var oddCnt=0, evenCnt=0, smallCnt=0, bigCnt=0;
+  var distrib = {};
+  rawData.forEach(function(r) {
+    var o=0, sm=0;
+    r.numbers.forEach(function(n){ if(n%2===1) o++; if(n<=24) sm++; });
+    var e=r.numbers.length-o, b=r.numbers.length-sm;
+    oddCnt+=o; evenCnt+=e; smallCnt+=sm; bigCnt+=b;
+    var key = '奇'+o+'偶'+e;
+    distrib[key] = (distrib[key]||0)+1;
+  });
+  var tot6 = total*6;
+  var distSorted = Object.entries(distrib).sort(function(a,b){return b[1]-a[1];});
+  var s = '⚖️ 奇偶大小分析（共 ' + total + ' 期）\n' + '─'.repeat(36) + '\n';
+  s += '\n📊 整體分佈：\n';
+  s += '  奇數：' + oddCnt + '個 (' + (oddCnt/tot6*100).toFixed(1) + '%)\n';
+  s += '  偶數：' + evenCnt + '個 (' + (evenCnt/tot6*100).toFixed(1) + '%)\n';
+  s += '  小號(1-24)：' + smallCnt + '個 (' + (smallCnt/tot6*100).toFixed(1) + '%)\n';
+  s += '  大號(25-49)：' + bigCnt + '個 (' + (bigCnt/tot6*100).toFixed(1) + '%)\n';
+  s += '\n📈 奇偶組合出現頻率（前8名）：\n';
+  distSorted.slice(0,8).forEach(function(kv) {
+    s += '  ' + kv[0].padEnd(6) + '：' + kv[1] + '期 (' + (kv[1]/total*100).toFixed(1) + '%)\n';
+  });
+  if (distSorted.length) s += '\n💡 最常見：' + distSorted[0][0] + '，建議優先參考此比例選號。';
+  return s;
+}
+
+function saGap() {
+  var total = rawData.length;
+  var lastSeen = new Array(50).fill(total);
+  var appeared = {};
+  for (var d=0;d<rawData.length;d++) {
+    rawData[d].numbers.forEach(function(n) {
+      if (!appeared[n]) { lastSeen[n]=d; appeared[n]=true; }
+    });
+    if (Object.keys(appeared).length===49) break;
+  }
+  var sorted = [];
+  for (var i=1;i<=49;i++) sorted.push(i);
+  sorted.sort(function(a,b){return lastSeen[b]-lastSeen[a];});
+  var s = '📉 遺漏值分析（距上次出現期數）\n' + '─'.repeat(36) + '\n';
+  s += '號碼  遺漏期  狀態\n' + '─'.repeat(28) + '\n';
+  sorted.forEach(function(n) {
+    var g = lastSeen[n];
+    var st = g===0?'🔴本期':g<=3?'🟠近期':g<=8?'🟡一般':g<=15?'🔵待補':g<=25?'❄️偏冷':'🌑極冷';
+    s += '  ' + String(n).padStart(2) + '    ' + String(g).padStart(4) + '期   ' + st + '\n';
+  });
+  return s;
+}
+
+function saPick() {
+  var f = saGetFreq(), freq = f.freq, spFreq = f.spFreq;
+  var total = rawData.length;
+  var groups = Math.min(99, Math.max(1, parseInt(document.getElementById('smartComboCount').value)||5));
+  var score = new Array(50).fill(0);
+  for (var i=1;i<=49;i++) score[i] = freq[i];
+  rawData.slice(0,20).forEach(function(r,idx) {
+    var bonus = (20-idx)*0.5;
+    r.numbers.forEach(function(n){ score[n]+=bonus; });
+  });
+  var lastSeen2 = new Array(50).fill(total);
+  rawData.forEach(function(r,idx){ r.numbers.forEach(function(n){ if(lastSeen2[n]===total) lastSeen2[n]=idx; }); });
+  for (var j=1;j<=49;j++) { if(lastSeen2[j]>15) score[j]+=5; }
+
+  var ranked = [];
+  for (var k=1;k<=49;k++) ranked.push(k);
+  ranked.sort(function(a,b){return score[b]-score[a];});
+
+  var spRanked = [];
+  for (var m=1;m<=49;m++) spRanked.push(m);
+  spRanked.sort(function(a,b){return spFreq[b]-spFreq[a];});
+
+  var hasSp = rawData.some(function(r){return r.sp!==null;});
+  var combos = [];
+  for (var g=0;g<groups;g++) {
+    var pool=ranked.slice(), nums=[], attempts=0;
+    while (nums.length<6 && pool.length>0 && attempts<200) {
+      attempts++;
+      var topN = Math.min(15+g*3, pool.length);
+      var idx2 = Math.floor(Math.random()*topN);
+      var n = pool[idx2];
+      pool.splice(idx2,1);
+      if (nums.length===5) {
+        var finalOdd = nums.filter(function(x){return x%2===1;}).length + (n%2===1?1:0);
+        if (finalOdd<2 || 6-finalOdd<2) continue;
+      }
+      nums.push(n);
+    }
+    if (nums.length===6) {
+      nums.sort(function(a,b){return a-b;});
+      var sp = hasSp ? spRanked[g % Math.max(spRanked.length,1)] : null;
+      combos.push({nums:nums, sp:sp});
+    }
+  }
+
+  var s = '🎯 智慧推薦選號（共 ' + total + ' 期分析）\n' + '─'.repeat(44) + '\n';
+  s += '演算法：頻率加權＋近期熱度＋冷號回補＋奇偶平衡\n\n';
+  combos.forEach(function(c,i) {
+    var o=c.nums.filter(function(n){return n%2===1;}).length;
+    var sm=c.nums.filter(function(n){return n<=24;}).length;
+    var spStr = c.sp ? '  特別號：' + String(c.sp).padStart(2) : '';
+    s += '第' + String(i+1).padStart(2) + '組：[ ' + c.nums.map(function(n){return String(n).padStart(2);}).join(' ') + ' ]' + spStr + '\n';
+    s += '         奇' + o + '偶' + (6-o) + ' ｜ 小' + sm + '大' + (6-sm) + '\n\n';
+  });
+  s += '⚠️ 以上為統計參考，樂透為隨機事件，請理性投注。';
+  return s;
+}
+
+
+function saConsec() {
+  var total = rawData.length;
+  if (!total) return '\u8acb\u5148\u532f\u5165\u8cc7\u6599';
+
+  var pairCount = {};
+  var tripleCount = {};
+  var runLengths = {1:0,2:0,3:0,4:0,5:0,6:0};
+
+  rawData.forEach(function(r) {
+    var sorted = r.numbers.slice().sort(function(a,b){return a-b;});
+    var i = 0;
+    while (i < sorted.length) {
+      var runLen = 1;
+      while (i + runLen < sorted.length && sorted[i+runLen] === sorted[i]+runLen) runLen++;
+      if (runLengths[runLen] !== undefined) runLengths[runLen]++;
+      else runLengths[6]++;
+      for (var j = 0; j < runLen - 1; j++) {
+        var key2 = sorted[i+j] + ',' + (sorted[i+j]+1);
+        pairCount[key2] = (pairCount[key2]||0) + 1;
+      }
+      for (var k = 0; k < runLen - 2; k++) {
+        var key3 = sorted[i+k] + ',' + (sorted[i+k]+1) + ',' + (sorted[i+k]+2);
+        tripleCount[key3] = (tripleCount[key3]||0) + 1;
+      }
+      i += runLen;
+    }
+  });
+
+  var pairArr = Object.entries(pairCount).sort(function(a,b){return b[1]-a[1];}).slice(0,15);
+  var triArr  = Object.entries(tripleCount).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+
+  var withRun = rawData.filter(function(r){
+    var s = r.numbers.slice().sort(function(a,b){return a-b;});
+    for (var i = 0; i < s.length-1; i++) { if (s[i+1] === s[i]+1) return true; }
+    return false;
+  }).length;
+  var noRunCnt = total - withRun;
+
+  var s = '\ud83d\udd17 \u9023\u865f\u5206\u6790\uff08\u5171 ' + total + ' \u671f\uff09\n';
+  s += '\u2500'.repeat(40) + '\n\n';
+  s += '\ud83d\udcca \u6bcf\u671f\u9023\u865f\u60c5\u6cc1\uff1a\n';
+  s += '  \u7121\u9023\u865f\uff1a' + noRunCnt + '\u671f (' + (noRunCnt/total*100).toFixed(1) + '%)\n';
+  [2,3,4,5,6].forEach(function(len) {
+    var c = runLengths[len] || 0;
+    if (c > 0) s += '  ' + len + '\u9023\u865f\uff1a' + c + '\u671f (' + (c/total*100).toFixed(1) + '%)\n';
+  });
+
+  s += '\n\ud83d\udd25 \u51fa\u73fe\u6700\u9ad8 15 \u5c0d\u9023\u865f\u5c0d\uff1a\n';
+  s += '\u865f\u78bc\u5c0d          \u671f\u6578   \u6a5f\u7387\n';
+  s += '\u2500'.repeat(32) + '\n';
+  pairArr.forEach(function(kv) {
+    var nums = kv[0].replace(',', ' - ');
+    s += '  [' + nums + ']        ' + String(kv[1]).padStart(4) + '\u671f   ' + (kv[1]/total*100).toFixed(1) + '%\n';
+  });
+
+  if (triArr.length) {
+    s += '\n\u26a1 \u9023\u865f\u4e09\u4e4b\u7ec4\uff08\u524d 8 \u540d\uff09\uff1a\n';
+    s += '\u2500'.repeat(32) + '\n';
+    triArr.forEach(function(kv) {
+      var nums = kv[0].split(',').join(' - ');
+      s += '  [' + nums + ']   ' + String(kv[1]).padStart(4) + '\u671f   ' + (kv[1]/total*100).toFixed(1) + '%\n';
+    });
+  }
+
+  s += '\n\ud83d\udca1 \u63d0\u793a\uff1a\u9023\u53f7\u7d44\u5408\u51fa\u73fe\u6a5f\u7387\u53ef\u4f5c\u70ba\u9078\u865f\u53c3\u8003\u4f9d\u64da\u3002';
+  return s;
+}
+
+
+// ═══════════════════════════════════
+//  IndexedDB  AUTO-SAVE / RESTORE
+// ═══════════════════════════════════
+var IDB_NAME  = 'LotteryWeightDB';
+var IDB_STORE = 'snapshots';
+var IDB_KEY   = 'latest';
+var _idb      = null;
+
+function idbOpen() {
+  return new Promise(function(res, rej) {
+    if (_idb) { res(_idb); return; }
+    var req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = function(e) {
+      e.target.result.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = function(e) { _idb = e.target.result; res(_idb); };
+    req.onerror   = function(e) { rej(e.target.error); };
+  });
+}
+
+function idbSave() {
+  if (!dataReady) return;
+  var snap = {
+    historyCounts:      historyCounts.slice(),
+    targetDistribution: targetDistribution.slice(),
+    currentWeights:     currentWeights.slice(),
+    totalSamples:       totalSamples,
+    rawDataLen:         rawData.length,
+    savedAt:            Date.now()
+  };
+  idbOpen().then(function(db) {
+    var tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(snap, IDB_KEY);
+    tx.oncomplete = function() { updateIdbBar('\u2705 \u8cc7\u6599\u5df2\u81ea\u52d5\u5132\u5b58\u81f3\u88dd\u7f6e'); };
+    tx.onerror    = function() { updateIdbBar('\u26a0\ufe0f IndexedDB \u5132\u5b58\u5931\u6557'); };
+  }).catch(function() { updateIdbBar('\u26a0\ufe0f IndexedDB \u958b\u555f\u5931\u6557'); });
+}
+
+function idbLoad() {
+  return new Promise(function(res) {
+    idbOpen().then(function(db) {
+      var tx  = db.transaction(IDB_STORE, 'readonly');
+      var req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      req.onsuccess = function() { res(req.result || null); };
+      req.onerror   = function() { res(null); };
+    }).catch(function() { res(null); });
+  });
+}
+
+function idbClear() {
+  idbOpen().then(function(db) {
+    var tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(IDB_KEY);
+    tx.oncomplete = function() {
+      updateIdbBar('\ud83d\uddd1\ufe0f \u5df2\u6e05\u9664\u5132\u5b58\u7684\u8cc7\u6599');
+      var rb = document.getElementById('restoreBar');
+      if (rb) rb.style.display = 'none';
+    };
+  });
+}
+
+function idbRestore(snap) {
+  historyCounts      = snap.historyCounts.slice();
+  targetDistribution = snap.targetDistribution.slice();
+  currentWeights     = snap.currentWeights.slice();
+  totalSamples       = snap.totalSamples;
+  dataReady          = true;
+  document.getElementById('btnCalibrate').disabled = false;
+  document.getElementById('smartPanel').style.display = '';
+  renderWeights(true);
+  renderPreview();
+  var dt = new Date(snap.savedAt);
+  var ds = dt.getFullYear() + '/' + String(dt.getMonth()+1).padStart(2,'0') + '/' +
+           String(dt.getDate()).padStart(2,'0') + ' ' +
+           String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+  setStatus('<span style="color:var(--green)">\u2705 \u5df2\u5f9e\u88dd\u7f6e\u5132\u5b58\u9084\u539f ' +
+            snap.rawDataLen + ' \u671f\u8cc7\u6599\uff08\u5132\u5b58\u65bc ' + ds + '\uff09</span>');
+  log('\u81ea\u52d5\u9084\u539f\uff1a' + snap.rawDataLen + ' \u671f\uff0ctotalSamples=' + snap.totalSamples, 'ok');
+  updateIdbBar('\u2705 \u5df2\u9084\u539f\u5132\u5b58\u7684\u8cc7\u6599\uff08' + ds + '\uff09');
+}
+
+function updateIdbBar(msg) {
+  var bar = document.getElementById('idbStatusBar');
+  if (bar) { bar.textContent = msg; bar.style.display = ''; }
+}
+
+window.addEventListener('load', function() {
+  idbLoad().then(function(snap) {
+    if (!snap) return;
+    var bar = document.getElementById('restoreBar');
+    if (!bar) return;
+    var dt = new Date(snap.savedAt);
+    var ds = dt.getFullYear() + '/' + String(dt.getMonth()+1).padStart(2,'0') + '/' +
+             String(dt.getDate()).padStart(2,'0') + ' ' +
+             String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+    bar.innerHTML =
+      '<span style="color:var(--accent)">\ud83d\udcbe \u767c\u73fe\u5df2\u5132\u5b58\u7684\u8cc7\u6599\uff08' +
+      ds + '\uff0c' + snap.rawDataLen + ' \u671f\uff09</span>' +
+      '&nbsp;&nbsp;<button class="btn" style="background:var(--green);color:white;font-size:0.78rem;padding:5px 14px;">' +
+      '\u2705 \u9084\u539f</button>' +
+      '&nbsp;<button class="btn" style="background:#374151;color:var(--muted);font-size:0.78rem;padding:5px 12px;"' +
+      ' onclick="idbClear()">\ud83d\uddd1\ufe0f \u5ffd\u7565</button>';
+    bar.style.display = 'flex';
+    // attach restore handler
+    bar.querySelector('button').onclick = function() { idbRestore(snap); };
+  });
+});
 
 // ═══════════════════════════════════
 //  UTILS
